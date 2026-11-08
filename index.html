@@ -69,7 +69,7 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
 </head>
 <body>
 <main>
-  <img class="logo" id="logo" src="icon.png" alt="Localiza Samba" onerror="this.hidden=true;document.getElementById('brand').hidden=false">
+  <img class="logo" id="logo" src="logo.png" alt="Localiza Samba" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='icon.png'}else{this.hidden=true;document.getElementById('brand').hidden=false}">
   <div class="brand" id="brand" hidden>LOCALIZA SAMBA</div>
 
   <form id="lg" class="card" style="margin-top:14px">
