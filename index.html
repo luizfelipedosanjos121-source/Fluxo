@@ -13,6 +13,9 @@
 :root{--bg:#000;--card:#0f0e0b;--bd:#2e2610;--gold:#f2b01e;--gold2:#ffd36b;--red:#e5352b;--tx:#f3f1ec;--mu:#a79f8c;color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+body:not(.in) #app,body:not(.in) #tabs,body:not(.in) #view,body:not(.in) .toast{display:none!important}
+body.in #lg,body.in #logo,body.in #brand{display:none!important}
+.ver{text-align:center;color:#555;font-size:11px;margin-top:14px}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;padding:env(safe-area-inset-top,0px) 0 0}
 main{max-width:720px;margin:0 auto;padding:8px 14px calc(96px + env(safe-area-inset-bottom,0px))}
@@ -79,6 +82,7 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
     <p class="hint" id="lm" role="alert" style="color:var(--red);margin:8px 0 0"></p>
     <button class="btn" type="submit">Entrar</button>
   </form>
+  <div class="ver" id="ver">versão 3</div>
 
   <div id="app" hidden>
 
@@ -102,17 +106,26 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
   <section class="pg" id="pg-agenda" hidden>
     <h2>Agenda de shows</h2>
     <p class="hint" id="agh"></p>
-    <div id="agt" class="st ent" style="margin:0 0 4px"></div>
+    <div class="ind card">
+      <div><small>Próximos shows</small><b id="gprox">0</b><small id="gproxv"></small></div>
+      <div><small>Combinado (total)</small><b id="gcomb">R$ 0,00</b></div>
+      <div><small>Já recebido</small><b class="ent" id="grec">R$ 0,00</b></div>
+      <div><small>Falta receber</small><b class="sai" id="gfal">R$ 0,00</b><small id="gfalv"></small></div>
+    </div>
+    <div class="chips" id="achips"><button data-a="prox" class="on">Próximos</button><button data-a="real">Realizados</button><button data-a="todos">Todos</button></div>
     <div id="agl"></div>
-    <div class="card" style="margin-top:12px">
-      <label for="ashow">Novo show: nome ou local</label><input id="ashow" placeholder="Ex.: Bar do Zé">
+    <h2 id="aform">Novo show</h2>
+    <p class="hint">O recebido vem dos lançamentos de Cachê pagos com o mesmo nome do show. O botão 💰 já lança com o nome certo. Se tiver dois shows no mesmo lugar, coloque a data no nome (ex.: Bar do Zé 15/11).</p>
+    <div class="card">
+      <label for="ashow">Nome do show ou local</label><input id="ashow" placeholder="Ex.: Bar do Zé 15/11">
       <div class="g2">
         <div><label for="adate">Data</label><input id="adate" type="date"></div>
         <div><label for="ahora">Horário</label><input id="ahora" type="time"></div>
       </div>
       <label for="aval">Valor combinado (R$)</label><input id="aval" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0,00">
-      <label for="aobs">Observação</label><input id="aobs" placeholder="Ex.: levar som próprio">
+      <label for="aobs">Endereço, contato ou observação</label><input id="aobs" placeholder="Ex.: Rua X, 100 · falar com João">
       <button class="btn" id="asave">Salvar na agenda</button>
+      <button class="btn line" id="acancel" hidden>Cancelar edição</button>
     </div>
   </section>
 
@@ -326,28 +339,47 @@ function post(o){return fetch(SHEET,{method:"POST",mode:"no-cors",headers:{"Cont
 function push(itens){return post({itens:itens})}
 function dias(d){var a=new Date(d+"T00:00:00"),h=new Date();h.setHours(0,0,0,0);return Math.round((a-h)/864e5)}
 
+var AF="prox",EDIT=null;
+function recebido(a){var n=a.show.trim().toLowerCase(),t=0;S.lanc.forEach(function(l){if(l.tipo==="Entrada"&&l.cat==="Cachê"&&String(l.show).trim().toLowerCase()===n&&stOf(l)==="pg")t+=l.valor});return r2(t)}
 function renderAg(){var box=$("agl");box.textContent="";var hoje=new Date().toLocaleDateString("en-CA");
- var arr=S.agenda.filter(function(a){return a.data>=hoje}).sort(function(x,y){return (x.data+(x.hora||"")).localeCompare(y.data+(y.hora||""))});
- var tot=arr.reduce(function(a,x){return a+(x.valor||0)},0);
- $("agt").textContent=arr.length?arr.length+(arr.length>1?" shows marcados · ":" show marcado · ")+brl(tot)+" a receber":"";
- if(!arr.length){box.appendChild(el("p","hint","Nenhum show marcado. Cadastre o próximo abaixo."));return}
- arr.forEach(function(a){var n=dias(a.data),q=n===0?"Hoje":n===1?"Amanhã":"Em "+n+" dias";
-  var r=el("div","row"),t=el("i");t.style.background="var(--gold)";r.appendChild(t);
-  var m=el("div","m");m.appendChild(el("div",null,a.show));m.appendChild(el("div","s2",dfmt(a.data)+(a.hora?" às "+a.hora:"")+" · "+q+(a.obs?" · "+a.obs:"")));r.appendChild(m);
-  r.appendChild(el("b","ent",brl(a.valor||0)));
-  var c=el("button",null,"💰");c.setAttribute("aria-label","Lançar o cachê deste show");c.onclick=function(){setTipo("Entrada");setS("ag");$("lshow").value=a.show;$("ldate").value=a.data;$("lval").value=a.valor||"";$("lcat").value="Cachê";$("ldesc").value="Cachê do show";tab("lanc");toast("Confira e toque em Salvar lançamento")};r.appendChild(c);
+ var all=S.agenda.slice().sort(function(x,y){return (x.data+(x.hora||"")).localeCompare(y.data+(y.hora||""))});
+ var np=0,vp=0,tc=0,tr=0,tf=0,fr=0,nr=0;
+ all.forEach(function(a){var v=a.valor||0,rc=recebido(a),f=Math.max(0,r2(v-rc));tc+=v;tr+=Math.min(rc,v)+(rc>v?rc-v:0);tf+=f;
+  if(a.data>=hoje){np++;vp+=v}else if(f>0){fr+=f;nr++}});
+ $("gprox").textContent=np;$("gproxv").textContent=np?brl(r2(vp))+" combinados":"Nenhum marcado";
+ $("gcomb").textContent=brl(r2(tc));$("grec").textContent=brl(r2(tr));$("gfal").textContent=brl(r2(tf));
+ $("gfalv").textContent=nr?brl(r2(fr))+" de "+nr+(nr>1?" shows já feitos":" show já feito"):"";
+ var arr=all.filter(function(a){return AF==="todos"||(AF==="prox"?a.data>=hoje:a.data<hoje)});
+ if(AF==="real")arr.reverse();
+ if(!arr.length){box.appendChild(el("p","hint",AF==="prox"?"Nenhum show marcado. Cadastre o próximo abaixo.":AF==="real"?"Nenhum show realizado ainda.":"Agenda vazia."));return}
+ arr.forEach(function(a){var n=dias(a.data),v=a.valor||0,rc=recebido(a),f=Math.max(0,r2(v-rc)),pago=v>0&&f<=0,fut=a.data>=hoje;
+  var q=n===0?"Hoje":n===1?"Amanhã":n>1?"Em "+n+" dias":"Há "+(-n)+(n===-1?" dia":" dias");
+  var r=el("div","row"),t=el("i");t.style.background=pago?"var(--gold)":(fut?"var(--gold2)":"var(--red)");r.appendChild(t);
+  var m=el("div","m");m.appendChild(el("div",null,a.show));
+  m.appendChild(el("div","s2",dfmt(a.data)+(a.hora?" às "+a.hora:"")+" · "+q+(a.obs?" · "+a.obs:"")));
+  var l3=el("div","s2");l3.appendChild(el("span","bd "+(pago?"pg":"ag"),pago?"Pago":(rc>0?"Falta "+brl(f):"Aguardando")));
+  l3.appendChild(document.createTextNode("Recebido "+brl(rc)+" de "+brl(v)));m.appendChild(l3);
+  var bar=el("div","bar");bar.style.height="6px";bar.style.marginTop="6px";var ii=el("i","a");ii.style.width=(v>0?Math.min(100,rc/v*100):0)+"%";bar.appendChild(ii);m.appendChild(bar);
+  r.appendChild(m);r.appendChild(el("b","ent",brl(v)));
+  var c=el("button",null,"💰");c.setAttribute("aria-label","Lançar pagamento deste show");c.onclick=function(){setTipo("Entrada");setS("pg");$("lshow").value=a.show;$("ldate").value=new Date().toLocaleDateString("en-CA");$("lval").value=f>0?f:"";$("lcat").value="Cachê";$("ldesc").value="Cachê do show";tab("lanc");toast("Confira o valor e toque em Salvar lançamento")};r.appendChild(c);
+  var e=el("button",null,"✏️");e.setAttribute("aria-label","Editar show");e.onclick=function(){EDIT=a;$("ashow").value=a.show;$("adate").value=a.data;$("ahora").value=a.hora||"";$("aval").value=a.valor||"";$("aobs").value=a.obs||"";$("asave").textContent="Salvar alterações";$("acancel").hidden=false;$("aform").textContent="Editar show";$("aform").scrollIntoView()};r.appendChild(e);
   var d=el("button",null,"🗑");d.setAttribute("aria-label","Apagar show da agenda");d.onclick=function(){if(!confirm("Apagar este show da agenda?"))return;
    if(AGS&&/^a\d+$/.test(a.id)){post({agenda_del:parseInt(a.id.slice(1),10)}).then(function(){toast("Apagado");syncSoon()}).catch(function(){toast("Sem internet. Não apaguei.")})}
    else{S.agenda=S.agenda.filter(function(x){return x.id!==a.id});save();refresh()}};r.appendChild(d);
   box.appendChild(r)})}
+document.querySelectorAll("#achips button").forEach(function(b){b.onclick=function(){AF=b.dataset.a;document.querySelectorAll("#achips button").forEach(function(x){x.classList.toggle("on",x===b)});renderAg()}});
+function endEdit(){EDIT=null;["ashow","adate","aval","aobs","ahora"].forEach(function(i){$(i).value=""});$("asave").textContent="Salvar na agenda";$("acancel").hidden=true;$("aform").textContent="Novo show"}
+$("acancel").onclick=endEdit;
 $("asave").onclick=function(){var sh=$("ashow").value.trim(),dt=$("adate").value;if(!sh||!dt){toast("Preencha o show e a data.");return}
- var it={id:Date.now()+"",data:dt,hora:$("ahora").value,show:sh,valor:r2(parseFloat($("aval").value)||0),obs:$("aobs").value.trim()};
- var fim=function(){["ashow","aval","aobs","ahora"].forEach(function(i){$(i).value=""})};
- if(!SHEET||!AGS){S.agenda.push(it);save();fim();refresh();toast("Show salvo na agenda");return}
+ var it={id:EDIT?EDIT.id:Date.now()+"",data:dt,hora:$("ahora").value,show:sh,valor:r2(parseFloat($("aval").value)||0),obs:$("aobs").value.trim()};
+ var old=EDIT;
+ if(!SHEET||!AGS||(old&&!/^a\d+$/.test(old.id))){
+  if(old){S.agenda=S.agenda.map(function(x){return x.id===old.id?it:x})}else S.agenda.push(it);
+  save();endEdit();refresh();toast(old?"Show atualizado":"Show salvo na agenda");return}
  $("asave").disabled=true;
- post({agenda_add:it}).then(function(){fim();toast("Show enviado para a planilha");syncSoon()})
+ var p=old?post({agenda_del:parseInt(old.id.slice(1),10)}).then(function(){return new Promise(function(ok){setTimeout(ok,1200)})}):Promise.resolve();
+ p.then(function(){return post({agenda_add:it})}).then(function(){endEdit();toast(old?"Show atualizado":"Show enviado para a planilha");syncSoon()})
  .catch(function(){toast("Sem internet. Não enviei o show.")}).then(function(){$("asave").disabled=false})};
-
 function refresh(){fillShows();indicator();calc();renderList();renderAg()}
 function setTipo(t){tipo=t;document.querySelectorAll("#segt button").forEach(function(b){b.classList.toggle("on",b.dataset.t===t)});
  var c=$("lcat");c.textContent="";CAT[t].forEach(function(x){c.appendChild(el("option",null,x))})}
@@ -403,7 +435,7 @@ function hash(u,p){var e=new TextEncoder();
  return crypto.subtle.importKey("raw",e.encode(u.trim().toLowerCase()+"\n"+p),"PBKDF2",false,["deriveBits"])
  .then(function(k){return crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:e.encode(SALT),iterations:150000},k,256)})
  .then(function(b){return Array.prototype.map.call(new Uint8Array(b),function(x){return("0"+x.toString(16)).slice(-2)}).join("")})}
-function unlock(){$("lg").hidden=true;$("app").hidden=false;if(!started){started=true;start()}}
+function unlock(){document.body.classList.add("in");$("lg").hidden=true;$("app").hidden=false;if(!started){started=true;start()}}
 try{var tk=sessionStorage.getItem(AK)||localStorage.getItem(AK);if(tk===AUTH)unlock()}catch(x){}
 $("lg").onsubmit=function(ev){ev.preventDefault();var m=$("lm");
  if(Date.now()<lockUntil){m.textContent="Muitas tentativas. Espere alguns segundos.";return}
@@ -412,7 +444,7 @@ $("lg").onsubmit=function(ev){ev.preventDefault();var m=$("lm");
   if(h===AUTH){m.textContent="";try{(($("lk").checked)?localStorage:sessionStorage).setItem(AK,h)}catch(x){}$("lp").value="";unlock()}
   else{fails++;if(fails>=5){fails=0;lockUntil=Date.now()+30000;m.textContent="Muitas tentativas. Espere 30 segundos."}else m.textContent="Usuário ou senha incorretos."}})
  .catch(function(){m.textContent="Não consegui verificar o login. Tente de novo."})};
-$("out").onclick=function(){try{sessionStorage.removeItem(AK);localStorage.removeItem(AK)}catch(x){}location.reload()};
+$("out").onclick=function(){document.body.classList.remove("in");try{sessionStorage.removeItem(AK);localStorage.removeItem(AK)}catch(x){}location.reload()};
 document.addEventListener("visibilitychange",function(){if(!document.hidden&&started)pull()});
 window.addEventListener("focus",function(){if(started)pull()});
 window.addEventListener("online",function(){if(started)pull()});
