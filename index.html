@@ -61,6 +61,10 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
 .leg{display:flex;gap:16px;font-size:12px;color:var(--mu);margin-top:6px}.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
 .cat{margin-top:10px}.cat div:first-child{display:flex;justify-content:space-between;font-size:14px}
 .row.done{opacity:.55}
+.ov{position:fixed;inset:0;background:#000c;display:none;align-items:flex-end;justify-content:center;z-index:8}.ov.on{display:flex}
+.sheet{background:#0b0a07;border:1px solid var(--bd);width:100%;max-width:640px;max-height:92%;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 14px calc(18px + env(safe-area-inset-bottom,0px))}
+.photo{border:2px dashed #3a3014;border-radius:12px;padding:12px;text-align:center}.photo input{border:0;padding:6px}.photo img{max-width:100%;max-height:200px;border-radius:8px;margin-top:8px}
+.row a{text-decoration:none;font-size:18px;padding:4px 8px}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
 </style>
 </head>
@@ -95,6 +99,7 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
   <div class="card"><div id="chart"></div><div class="leg"><span><i style="background:var(--gold)"></i>Entrada</span><span><i style="background:var(--red)"></i>Saída</span></div></div>
   <h2>Para onde foi o dinheiro</h2>
   <div class="card" id="cats"></div>
+  <button class="btn line" id="rsm">📤 Enviar resumo do caixa no WhatsApp</button>
   </section>
 
   <section class="pn" id="p-agenda" hidden>
@@ -165,6 +170,7 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
     </div>
     <label for="lcat">Categoria</label><select id="lcat"></select>
     <label for="ldesc">Descrição</label><input id="ldesc" placeholder="Ex.: cachê, gasolina da van">
+    <label>Comprovante (opcional)</label><div class="photo"><input type="file" id="lfile" accept="image/*" aria-label="Anexar comprovante"><img id="lprev" hidden alt="Prévia do comprovante"></div>
     <button class="btn" id="lsave">Salvar lançamento</button>
   </div>
   <div id="list"></div>
@@ -201,6 +207,24 @@ input:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid 
   </nav>
   </div>
 </main>
+<div class="ov" id="pov" role="dialog" aria-modal="true" aria-labelledby="ptit"><div class="sheet">
+  <h2 id="ptit" style="margin-top:0">Registrar pagamento</h2>
+  <p class="hint" id="pinfo"></p>
+  <div class="g2">
+    <div><label for="pval">Valor agora (R$)</label><input id="pval" type="number" inputmode="decimal" step="0.01" min="0"></div>
+    <div><label for="pdate">Data</label><input id="pdate" type="date"></div>
+  </div>
+  <label for="ppay">Forma de pagamento</label><select id="ppay"><option>Pix</option><option>Dinheiro</option><option>Transferência</option><option>Cartão</option></select>
+  <label>Comprovante (foto ou print)</label>
+  <div class="photo"><input type="file" id="pfile" accept="image/*" aria-label="Anexar comprovante"><img id="pprev" hidden alt="Prévia do comprovante"></div>
+  <div class="res" id="pres"></div>
+  <button class="btn" id="pok">Confirmar</button>
+  <button class="btn line" id="pfw">Confirmar e encaminhar no WhatsApp</button>
+  <button class="btn line" id="pcancel">Cancelar</button>
+</div></div>
+<div class="ov" id="vw" role="dialog" aria-modal="true" aria-label="Comprovante"><div class="sheet" style="text-align:center">
+  <img id="vimg" style="max-width:100%;border-radius:8px" alt="Comprovante"><button class="btn line" id="vcl">Fechar</button>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -264,6 +288,13 @@ function renderList(){var ls=$("list");ls.textContent="";
   var t=el("i");t.style.background=e?"var(--gold)":"var(--red)";r.appendChild(t);
   var m=el("div","m");m.appendChild(el("div",null,l.desc||l.cat));m.appendChild(el("div","s2",dfmt(l.data)+" · "+l.show+" · "+l.cat));r.appendChild(m);
   var v=el("b",e?"ent":"sai",(e?"+ ":"− ")+brl(l.valor));r.appendChild(v);
+  var lk=(l.link&&/^https?:/.test(l.link))?l.link:"";
+  if(lk){var ca=el("a");ca.href=lk;ca.target="_blank";ca.rel="noopener";ca.setAttribute("aria-label","Ver comprovante");
+   var mm=/\/d\/([\w-]+)/.exec(lk);
+   if(mm){var im=el("img");im.src="https://drive.google.com/thumbnail?id="+mm[1]+"&sz=w160";im.alt="Comprovante";im.style.cssText="width:40px;height:40px;object-fit:cover;border-radius:6px;display:block";im.onerror=function(){im.remove();ca.textContent="🧾"};ca.appendChild(im)}else ca.textContent="🧾";
+   r.appendChild(ca)}
+  else if(l.foto){var cb=el("button",null,"🧾");cb.setAttribute("aria-label","Ver comprovante");cb.onclick=function(){$("vimg").src=l.foto;$("vw").classList.add("on")};r.appendChild(cb)}
+  var sb2=el("button",null,"📤");sb2.setAttribute("aria-label","Encaminhar");sb2.onclick=function(){enviar(txtL(l),l.foto||null,lk)};r.appendChild(sb2);
   var d=el("button",null,"🗑");d.setAttribute("aria-label","Apagar lançamento");d.onclick=function(){if(confirm("Apagar este lançamento?")){S.lanc=S.lanc.filter(function(x){return x.id!==l.id});save();refresh()}};if(!SHEET)r.appendChild(d);
   ls.appendChild(r)})}
 
@@ -342,14 +373,46 @@ function renderContas(){var box=$("ctl");box.textContent="";
 function delAg(a){if(!confirm("Apagar este item da agenda? Os lançamentos já feitos continuam."))return;
  if(AGS&&/^a\d+$/.test(a.id)){post({agenda_del:parseInt(a.id.slice(1),10)}).then(function(){toast("Apagado");setTimeout(pull,2000)}).catch(function(){toast("Sem internet. Não apaguei.")})}
  else{S.agenda=S.agenda.filter(function(x){return x.id!==a.id});save();refresh()}}
-function regPag(a){var pg=a.tipo==="Pagar",f=falta(a);
- var x=prompt((pg?"Quanto você pagou agora":"Quanto você recebeu agora")+"? (R$)\nFalta "+brl(f)+" de "+brl(a.valor),String(f).replace(".",","));
- if(x===null)return;var v=parseBR(x);if(!(v>0)){toast("Valor inválido.");return}
+var pa=null,pfoto=null,lfoto=null;
+function hoje(){return new Date().toLocaleDateString("en-CA")}
+function shrinkURL(f){return createImageBitmap(f).then(function(bm){var k=Math.min(1,1000/Math.max(bm.width,bm.height)),c=document.createElement("canvas");
+ c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);return c.toDataURL("image/jpeg",.7)})}
+function fotoObj(u,nome){return {nome:"comprovante-"+hoje()+"-"+String(nome||"").replace(/[^\w]+/g,"-").slice(0,30)+".jpg",b64:u.split(",")[1]}}
+function pcalc(){var a=pa;if(!a)return;var pg=a.tipo==="Pagar",v=parseFloat($("pval").value)||0,f=falta(a),cx=caixa(),b=$("pres");b.textContent="";
+ [["Falta na conta depois",brl(Math.max(0,r2(f-v)))],["Caixa depois",brl(r2(pg?cx-v:cx+v))]].forEach(function(x){var d=el("div");d.appendChild(el("span",null,x[0]));d.appendChild(el("b",null,x[1]));b.appendChild(d)})}
+function regPag(a){pa=a;pfoto=null;var pg=a.tipo==="Pagar";
+ $("ptit").textContent=pg?"Registrar pagamento":"Registrar recebimento";
+ $("pinfo").textContent=a.show+" · falta "+brl(falta(a))+" de "+brl(a.valor);
+ $("pval").value=falta(a);$("pdate").value=hoje();$("pfile").value="";$("pprev").hidden=true;pcalc();$("pov").classList.add("on")}
+$("pval").oninput=pcalc;
+$("pcancel").onclick=function(){$("pov").classList.remove("on")};
+$("vcl").onclick=function(){$("vw").classList.remove("on")};
+function lerFoto(inp,img,set){inp.onchange=function(){var f=inp.files[0];if(!f)return;shrinkURL(f).then(function(u){set(u);img.src=u;img.hidden=false}).catch(function(){toast("Não consegui abrir essa imagem.")})}}
+lerFoto($("pfile"),$("pprev"),function(u){pfoto=u});lerFoto($("lfile"),$("lprev"),function(u){lfoto=u});
+function txtL(l){return "🎶 Localiza Samba\n"+(l.desc||(l.tipo==="Saída"?"Saída":"Entrada")+": "+l.cat)+"\nValor: "+brl(l.valor)+"\nData: "+dfmt(l.data)+(l.forma?" · "+l.forma:"")+"\nShow/conta: "+l.show}
+function toFile(u){var b=atob(u.split(",")[1]),n=b.length,a=new Uint8Array(n);while(n--)a[n]=b.charCodeAt(n);return new File([a],"comprovante.jpg",{type:"image/jpeg"})}
+function enviar(texto,foto,link){var t=texto+(link?"\nComprovante: "+link:""),wa=function(){window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank")};
+ if(!navigator.share){wa();return}
+ var d={text:t};if(foto){try{var f=toFile(foto);if(navigator.canShare&&navigator.canShare({files:[f]}))d.files=[f]}catch(x){}}
+ navigator.share(d).catch(function(e){if(!e||e.name!=="AbortError")wa()})}
+function resumo(){var ein=0,eout=0,r=0,p=0,cont=[];S.lanc.forEach(function(l){if(l.tipo==="Entrada")ein+=l.valor;else eout+=l.valor});
+ S.agenda.forEach(function(a){var f=falta(a);if(f>0.004){if(a.tipo==="Pagar"){p+=f;cont.push(a)}else r+=f}});cont.sort(byDate);
+ var t="🎶 Localiza Samba · resumo do caixa\nEntrou: "+brl(ein)+"\nSaiu: "+brl(eout)+"\nCaixa: "+brl(r2(ein-eout))+"\nA receber: "+brl(r)+"\nA pagar: "+brl(p);
+ if(cont.length)t+="\n\nContas pendentes:\n"+cont.slice(0,6).map(function(a){return "• "+a.show+" ("+dfmt(a.data)+"): falta "+brl(falta(a))}).join("\n");return t}
+$("rsm").onclick=function(){enviar(resumo(),null,"")};
+function reg(fw){var a=pa,pg=a.tipo==="Pagar",f=falta(a),v=parseFloat($("pval").value)||0;
+ if(!(v>0)||!$("pdate").value){toast("Informe o valor e a data.");return}
  if(v>f+0.005&&!confirm("Esse valor é maior do que falta ("+brl(f)+"). Registrar mesmo assim?"))return;
  if(pg&&v>caixa()+0.005&&!confirm("O caixa tem "+brl(caixa())+". Registrar o pagamento mesmo assim?"))return;
- var l={id:Date.now()+"",data:new Date().toLocaleDateString("en-CA"),show:a.show,tipo:pg?"Saída":"Entrada",cat:a.cat||(pg?"Outros (saída)":"Cachê"),desc:(pg?"Pagamento: ":"Recebimento: ")+a.show,valor:r2(v)};
- if(!SHEET||!AGS||!/^a\d+$/.test(a.id)){a.pago=r2((a.pago||0)+v);S.lanc.push(l);save();refresh();toast(pg?"Pagamento registrado":"Recebimento registrado");return}
- post({agenda_pay:{row:parseInt(a.id.slice(1),10),valor:r2(v)},itens:[l]}).then(function(){toast("Enviado para a planilha");setTimeout(pull,2000)}).catch(function(){toast("Sem internet. Não registrei.")})}
+ if(fw)enviar("🎶 Localiza Samba\n"+(pg?"Pagamento":"Recebimento")+" registrado\n"+a.show+"\nValor: "+brl(v)+" · "+$("ppay").value+" · "+dfmt($("pdate").value)+"\nFalta: "+brl(Math.max(0,r2(f-v)))+" de "+brl(a.valor),pfoto,"");
+ var l={id:Date.now()+"",data:$("pdate").value,show:a.show,tipo:pg?"Saída":"Entrada",cat:a.cat||(pg?"Outros (saída)":"Cachê"),desc:(pg?"Pagamento: ":"Recebimento: ")+a.show,valor:r2(v),forma:$("ppay").value};
+ var ph=pfoto,rowOk=AGS&&/^a\d+$/.test(a.id),msg=pg?"Pagamento registrado":"Recebimento registrado";
+ if(!SHEET){a.pago=r2((a.pago||0)+v);if(ph)l.foto=ph;S.lanc.push(l);save();$("pov").classList.remove("on");refresh();toast(msg);return}
+ var o={itens:[l]};if(ph)o.foto=fotoObj(ph,a.show);if(rowOk)o.agenda_pay={row:parseInt(a.id.slice(1),10),valor:r2(v)};
+ $("pok").disabled=true;$("pfw").disabled=true;
+ post(o).then(function(){if(!rowOk){a.pago=r2((a.pago||0)+v);save()}$("pov").classList.remove("on");toast(msg+" na planilha");refresh();setTimeout(pull,2500)})
+ .catch(function(){toast("Sem internet. Não registrei.")}).then(function(){$("pok").disabled=false;$("pfw").disabled=false})}
+$("pok").onclick=function(){reg(false)};$("pfw").onclick=function(){reg(true)};
 function addAg(it,btn,ids){var fim=function(){ids.forEach(function(i){$(i).value=""})};
  if(!SHEET||!AGS){S.agenda.push(it);save();fim();refresh();toast("Salvo");return}
  $(btn).disabled=true;post({agenda_add:it}).then(function(){fim();toast("Enviado para a planilha");setTimeout(pull,2000)})
@@ -372,10 +435,11 @@ $("addm").onclick=function(){S.membros.push({nome:"",cota:1});save();renderMems(
 $("lsave").onclick=function(){var v=parseFloat($("lval").value),sh=$("lshow").value.trim();
  if(!sh||!$("ldate").value||!(v>0)){toast("Preencha show, data e um valor maior que zero.");return}
  var it={id:Date.now()+"",data:$("ldate").value,show:sh,tipo:tipo,cat:$("lcat").value,desc:$("ldesc").value.trim(),valor:r2(v)};
- var fim=function(){$("lval").value="";$("ldesc").value="";veicManual=null;refresh()};
+ var ph=lfoto;if(ph&&!SHEET)it.foto=ph;
+ var fim=function(){$("lval").value="";$("ldesc").value="";lfoto=null;$("lfile").value="";$("lprev").hidden=true;veicManual=null;refresh()};
  if(!SHEET){S.lanc.push(it);save();fim();toast("Lançamento salvo");return}
  $("lsave").disabled=true;
- push([it]).then(function(){S.lanc.push(it);fim();toast("Enviado para a planilha");setTimeout(pull,2000)})
+ post(ph?{itens:[it],foto:fotoObj(ph,sh)}:{itens:[it]}).then(function(){S.lanc.push(it);fim();toast("Enviado para a planilha");setTimeout(pull,2000)})
  .catch(function(){toast("Sem internet. Não enviei para a planilha.")}).then(function(){$("lsave").disabled=false})};
 $("ssave").onclick=function(){var u=$("surl").value.trim();
  if(u&&!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(u)){toast("Endereço inválido. Ele termina em /exec.");return}
